@@ -29,7 +29,7 @@ export const SCHEMA_DDL: string[] = [
   );
   `,
   `
-  CREATE REL TABLE IF NOT EXISTS UNION(
+  CREATE REL TABLE IF NOT EXISTS FAMILY_UNION(
     FROM Person TO Person,
     unionId STRING,
     type STRING,
