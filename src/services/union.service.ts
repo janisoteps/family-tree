@@ -53,8 +53,8 @@ function cypherValue(value: string | null | undefined): string {
 }
 
 /**
- * Create or update UNION:
- * (Person {id: person1_id}) -[UNION {unionId, type, startDate, endDate, place, status, notes}]-> (Person {id: person2_id})
+ * Create or update FAMILY_UNION:
+ * (Person {id: person1_id}) -[FAMILY_UNION {unionId, type, startDate, endDate, place, status, notes}]-> (Person {id: person2_id})
  */
 export async function createUnion(input: CreateUnionInput): Promise<UnionRow> {
   const person1Id = input.person1_id?.trim();
@@ -78,7 +78,7 @@ export async function createUnion(input: CreateUnionInput): Promise<UnionRow> {
   const q = `
     MATCH (p1:Person {id: ${cypherString(person1Id)}})
     MATCH (p2:Person {id: ${cypherString(person2Id)}})
-    MERGE (p1)-[r:UNION]->(p2)
+    MERGE (p1)-[r:FAMILY_UNION]->(p2)
     SET
       r.unionId = ${cypherValue(input.unionId)},
       r.type = ${cypherValue(input.type)},
