@@ -32,16 +32,24 @@ function cypherString(value: string): string {
 
 /**
  * Build a Cypher date literal: date('YYYY-MM-DD') or NULL
+ * Automatically formats ISO date strings (e.g., 2000-03-28T00:00:00.000Z) to YYYY-MM-DD
  */
 function cypherDate(value: string | null | undefined): string {
   if (!value) return "NULL";
   const v = value.trim();
   if (!v) return "NULL";
+  
+  // Extract date part from ISO string if present (e.g., "2000-03-28T00:00:00.000Z" -> "2000-03-28")
+  let dateStr = v;
+  if (v.includes('T')) {
+    dateStr = v.split('T')[0];
+  }
+  
   // Validate it's a valid date string format (YYYY-MM-DD)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     throw new Error(`Invalid date format: ${v}. Expected YYYY-MM-DD`);
   }
-  return `date(${cypherString(v)})`;
+  return `date(${cypherString(dateStr)})`;
 }
 
 /**

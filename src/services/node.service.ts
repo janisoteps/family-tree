@@ -19,6 +19,8 @@ export type NodeListResult = {
     phone: string | null;
     current_address: string | null;
     data: string | null;
+    position_x: number | null;
+    position_y: number | null;
   }>;
 };
 
@@ -52,7 +54,9 @@ export async function listAllNodes(): Promise<NodeListResult> {
       p.email AS email,
       p.phone AS phone,
       p.current_address AS current_address,
-      p.data AS data
+      p.data AS data,
+      p.position_x AS position_x,
+      p.position_y AS position_y
     ORDER BY p.last_name, p.first_name, id;
   `);
 

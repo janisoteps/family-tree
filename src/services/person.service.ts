@@ -18,6 +18,8 @@ export type CreatePersonInput = {
   phone?: string | null;
   current_address?: string | null;
   data?: string | null; // Stringified JSON
+  position_x?: number | null;
+  position_y?: number | null;
 };
 
 export type UpdatePersonInput = {
@@ -36,6 +38,8 @@ export type UpdatePersonInput = {
   phone?: string | null;
   current_address?: string | null;
   data?: string | null; // Stringified JSON
+  position_x?: number | null;
+  position_y?: number | null;
 };
 
 export type PersonRow = {
@@ -55,6 +59,8 @@ export type PersonRow = {
   phone: string | null;
   current_address: string | null;
   data: string | null;
+  position_x: number | null;
+  position_y: number | null;
 };
 
 /**
@@ -69,16 +75,24 @@ function cypherString(value: string): string {
 
 /**
  * Build a Cypher date literal: date('YYYY-MM-DD') or NULL
+ * Automatically formats ISO date strings (e.g., 2000-03-28T00:00:00.000Z) to YYYY-MM-DD
  */
 function cypherDate(value: string | null | undefined): string {
   if (!value) return "NULL";
   const v = value.trim();
   if (!v) return "NULL";
+  
+  // Extract date part from ISO string if present (e.g., "2000-03-28T00:00:00.000Z" -> "2000-03-28")
+  let dateStr = v;
+  if (v.includes('T')) {
+    dateStr = v.split('T')[0];
+  }
+  
   // Validate it's a valid date string format (YYYY-MM-DD)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     throw new Error(`Invalid date format: ${v}. Expected YYYY-MM-DD`);
   }
-  return `date(${cypherString(v)})`;
+  return `date(${cypherString(dateStr)})`;
 }
 
 /**
@@ -87,6 +101,14 @@ function cypherDate(value: string | null | undefined): string {
 function cypherValue(value: string | null | undefined): string {
   if (value === null || value === undefined) return "NULL";
   return cypherString(value);
+}
+
+/**
+ * Build a Cypher float value assignment that handles null/undefined numbers
+ */
+function cypherFloat(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "NULL";
+  return String(value);
 }
 
 /**
@@ -118,7 +140,9 @@ export async function createPerson(input: CreatePersonInput): Promise<PersonRow>
       p.email = ${cypherValue(input.email)},
       p.phone = ${cypherValue(input.phone)},
       p.current_address = ${cypherValue(input.current_address)},
-      p.data = ${cypherValue(input.data)}
+      p.data = ${cypherValue(input.data)},
+      p.position_x = ${cypherFloat(input.position_x)},
+      p.position_y = ${cypherFloat(input.position_y)}
     RETURN
       p.id AS id,
       p.first_name AS first_name,
@@ -135,7 +159,9 @@ export async function createPerson(input: CreatePersonInput): Promise<PersonRow>
       p.email AS email,
       p.phone AS phone,
       p.current_address AS current_address,
-      p.data AS data;
+      p.data AS data,
+      p.position_x AS position_x,
+      p.position_y AS position_y;
   `;
 
   const row = await pool.withConnection(async (conn) => {
@@ -265,6 +291,12 @@ export async function updatePerson(id: string, input: UpdatePersonInput): Promis
   if (input.data !== undefined) {
     setClauses.push(`p.data = ${cypherValue(input.data)}`);
   }
+  if (input.position_x !== undefined) {
+    setClauses.push(`p.position_x = ${cypherFloat(input.position_x)}`);
+  }
+  if (input.position_y !== undefined) {
+    setClauses.push(`p.position_y = ${cypherFloat(input.position_y)}`);
+  }
 
   if (setClauses.length === 0) {
     // No fields to update, just return the existing person
@@ -286,7 +318,9 @@ export async function updatePerson(id: string, input: UpdatePersonInput): Promis
         p.email AS email,
         p.phone AS phone,
         p.current_address AS current_address,
-        p.data AS data;
+        p.data AS data,
+        p.position_x AS position_x,
+        p.position_y AS position_y;
     `;
 
     const row = await pool.withConnection(async (conn) => {
@@ -322,7 +356,9 @@ export async function updatePerson(id: string, input: UpdatePersonInput): Promis
       p.email AS email,
       p.phone AS phone,
       p.current_address AS current_address,
-      p.data AS data;
+      p.data AS data,
+      p.position_x AS position_x,
+      p.position_y AS position_y;
   `;
 
   const row = await pool.withConnection(async (conn) => {
@@ -331,6 +367,115 @@ export async function updatePerson(id: string, input: UpdatePersonInput): Promis
 
     if (!rows || rows.length === 0) {
       throw new Error(`Person not found: ${personId}`);
+    }
+    return rows[0] as PersonRow;
+  });
+
+  return row;
+}
+
+/**
+ * Update only the position coordinates for a Person node.
+ *
+ * - Updates only position_x and position_y fields
+ * - Throws an error if the person does not exist
+ * - Returns the updated person node
+ */
+export async function updatePersonPosition(
+  personId: string,
+  x: number,
+  y: number
+): Promise<PersonRow> {
+  if (!personId?.trim()) throw new Error("updatePersonPosition: personId is required");
+  if (typeof x !== 'number' || typeof y !== 'number') {
+    throw new Error("updatePersonPosition: x and y must be numbers");
+  }
+
+  const id = personId.trim();
+
+  const q = `
+    MATCH (p:Person {id: ${cypherString(id)}})
+    SET
+      p.position_x = ${cypherFloat(x)},
+      p.position_y = ${cypherFloat(y)}
+    RETURN
+      p.id AS id,
+      p.first_name AS first_name,
+      p.last_name AS last_name,
+      p.maiden_name AS maiden_name,
+      p.birth_date AS birth_date,
+      p.death_date AS death_date,
+      p.birth_place AS birth_place,
+      p.death_place AS death_place,
+      p.gender AS gender,
+      p.occupation AS occupation,
+      p.notes AS notes,
+      p.photo_url AS photo_url,
+      p.email AS email,
+      p.phone AS phone,
+      p.current_address AS current_address,
+      p.data AS data,
+      p.position_x AS position_x,
+      p.position_y AS position_y;
+  `;
+
+  const row = await pool.withConnection(async (conn) => {
+    const result = await conn.query(q);
+    const rows = await normalizeQueryResult(result).getAll();
+
+    if (!rows || rows.length === 0) {
+      throw new Error(`Person not found: ${id}`);
+    }
+    return rows[0] as PersonRow;
+  });
+
+  return row;
+}
+
+/**
+ * Clear the position coordinates for a Person node (set to NULL).
+ *
+ * - Sets position_x and position_y to NULL
+ * - Throws an error if the person does not exist
+ * - Returns the updated person node
+ */
+export async function clearPersonPosition(personId: string): Promise<PersonRow> {
+  if (!personId?.trim()) throw new Error("clearPersonPosition: personId is required");
+
+  const id = personId.trim();
+
+  const q = `
+    MATCH (p:Person {id: ${cypherString(id)}})
+    SET
+      p.position_x = NULL,
+      p.position_y = NULL
+    RETURN
+      p.id AS id,
+      p.first_name AS first_name,
+      p.last_name AS last_name,
+      p.maiden_name AS maiden_name,
+      p.birth_date AS birth_date,
+      p.death_date AS death_date,
+      p.birth_place AS birth_place,
+      p.death_place AS death_place,
+      p.gender AS gender,
+      p.occupation AS occupation,
+      p.notes AS notes,
+      p.photo_url AS photo_url,
+      p.email AS email,
+      p.phone AS phone,
+      p.current_address AS current_address,
+      p.data AS data,
+      p.position_x AS position_x,
+      p.position_y AS position_y;
+  `;
+
+  const row = await pool.withConnection(async (conn) => {
+    const result = await conn.query(q);
+    const rows = await normalizeQueryResult(result).getAll();
+
+    if (!rows || rows.length === 0) {
+      throw new Error(`Person not found: ${id}`);
     }
     return rows[0] as PersonRow;
   });
