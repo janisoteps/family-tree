@@ -3,6 +3,8 @@ import v1Router from './routes/v1.route';
 import { closeDatabase, initDatabase } from './db/database';
 import { pool } from './db/pool';
 import { initSchema } from './db/schema';
+import { apiOptions } from './middleware/cors';
+import { corsHeaders } from './middleware/cors';
 
 const PORT = process.env.PORT || 3000;
 
@@ -14,7 +16,10 @@ async function bootstrap() {
 
   const app = express();
 
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+  app.use(corsHeaders);
+  app.options('/*', apiOptions);
   app.use('/v1', v1Router);
 
   app.listen(PORT, () => {
