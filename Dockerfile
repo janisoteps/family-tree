@@ -1,25 +1,28 @@
-# Ubuntu 24.04 ships glibc 2.39 (>= 2.38), which fixes the lbug native addon error.
-FROM node:20-bookworm-slim
+FROM ubuntu:24.04
 
+ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
-# Install pm2 for runtime process management (like you do on the VM)
-RUN npm install -g pm2
+# Install Node 20 + pm2
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl git \
+    python3 make g++ \
+  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+  && apt-get install -y --no-install-recommends nodejs \
+  && npm install -g pm2 \
+  && rm -rf /var/lib/apt/lists/*
 
-# Copy package files first to leverage Docker layer caching
-COPY package*.json ./
+# Copy only package files first
+COPY package.json package-lock.json ./
 
-# Install deps (use npm ci if package-lock.json exists)
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+# Install deps and hard-fail if lbug didn't install
+RUN npm ci \
+ && node -e "require.resolve('lbug'); console.log('lbug installed OK')"
 
-# Copy the rest of the app
+# Copy the rest
 COPY . .
 
-# Ensure data dir exists inside container (DB file will be mounted here)
 RUN mkdir -p /app/data
 
-# App listens on PORT from env; expose for documentation
 EXPOSE 3666
-
-# Run via PM2 in Docker mode
 CMD ["pm2-runtime", "start", "npm", "--", "start"]
