@@ -1,5 +1,6 @@
 import express from 'express';
 import v1Router from './routes/v1.route';
+import healthRouter from './routes/health.route';
 import { closeDatabase, initDatabase } from './db/database';
 import { pool } from './db/pool';
 import { initSchema } from './db/schema';
@@ -20,6 +21,7 @@ async function bootstrap() {
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
   app.use(corsHeaders);
   app.options('/*', apiOptions);
+  app.use('/health', healthRouter);
   app.use('/v1', v1Router);
 
   app.listen(PORT, () => {
