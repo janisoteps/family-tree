@@ -3,7 +3,7 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
-# Install Node 20 + pm2
+# Node 20 + build deps + pm2
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl git \
     python3 make g++ \
@@ -12,14 +12,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && npm install -g pm2 \
   && rm -rf /var/lib/apt/lists/*
 
-# Copy only package files first
-COPY package.json package-lock.json ./
+# Copy only package.json first (so Docker cache works)
+COPY package.json ./
 
-# Install deps and hard-fail if lbug didn't install
-RUN npm ci \
- && node -e "require.resolve('lbug'); console.log('lbug installed OK')"
+# IMPORTANT: Use npm install (not npm ci) because your Debian-generated lockfile
+# doesn't include lbug due to glibc incompatibility.
+RUN npm install \
+ && node -e "console.log('lbug ->', require.resolve('lbug'))"
 
-# Copy the rest
+# Copy the rest of the app
 COPY . .
 
 RUN mkdir -p /app/data
