@@ -15,9 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy only package.json first (so Docker cache works)
 COPY package.json ./
 
-# IMPORTANT: Use npm install (not npm ci) because your Debian-generated lockfile
-# doesn't include lbug due to glibc incompatibility.
-RUN npm install \
+RUN npm install --loglevel=verbose \
+ && npm i lbug@^0.12.2 --loglevel=verbose \
  && node -e "console.log('lbug ->', require.resolve('lbug'))"
 
 # Copy the rest of the app
